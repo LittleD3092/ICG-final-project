@@ -41,7 +41,7 @@ void main()
 
 		//Try to put EndPrimitive() here and change triangle_strip to line_strip to see what's going on
 		//That might be helpful to achieve more creativity goals
-		}
+	}
 	EndPrimitive();
   
 }

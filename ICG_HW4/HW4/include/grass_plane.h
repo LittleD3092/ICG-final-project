@@ -27,18 +27,18 @@ public:
         glDeleteBuffers(1, &vbo);
         glDeleteProgram(program);
     }
-    void draw()
+    void draw(glm::vec3 windshift)
     {
-        // drawPlane();
-        drawBlade();
+        drawPlane();
+        drawBlade(windshift);
     }
 private:
-    void drawBlade()
+    void drawBlade(glm::vec3 windshift)
     {
         glDepthMask(GL_TRUE);
         glDepthFunc(GL_LESS);
 
-        glUseProgram(program);
+        glUseProgram(bladeProgram);
 
         unsigned int viewLoc = glGetUniformLocation(
             bladeProgram, "view"
@@ -49,15 +49,25 @@ private:
         unsigned int modelLoc = glGetUniformLocation(
             bladeProgram, "model"
         );
+        unsigned int textureLoc = glGetUniformLocation(
+            bladeProgram, "grass_blade"
+        );
+        unsigned int windshiftLoc = glGetUniformLocation(
+            bladeProgram, "windshift"
+        );
 
         // printMatrices();
         glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
         glUniformMatrix4fv(projectionLoc, 1, GL_FALSE, glm::value_ptr(projection));
         glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
+        glUniform1i(textureLoc, 0);
+        glUniform3fv(windshiftLoc, 1, glm::value_ptr(windshift));
 
-        glBindVertexArray(vao);
+        glBindVertexArray(bladeVao);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, bladeTexture);
 
-        glDrawArrays(GL_TRIANGLES, 0, vertices.size() / 3);
+        glDrawArrays(GL_POINTS, 0, bladeVertices.size()/3);
         glBindVertexArray(0);
 
         glUseProgram(0);
@@ -101,7 +111,7 @@ private:
     {
         width = 100;
         depth = 5;
-        density = 0.1;
+        density = 7;
         for(float x = 0; x < width; x += 1/density)
         {
             for(float z = 0; z < depth; z += 1/density)
@@ -131,11 +141,29 @@ private:
                 vertices.push_back(x + 1/density);
                 vertices.push_back(0);
                 vertices.push_back(z + 1/density);
+
+                // blade
+                bladeVertices.push_back(x);
+                bladeVertices.push_back(0);
+                bladeVertices.push_back(z);
+
+                // blade texture
+                bladeTexCoords.push_back(x / width);
+                bladeTexCoords.push_back(z / depth);
+
+                // blade length
+                bladeLengths.push_back(0.25 + float(rand() % 50) / 100.0);
             }
         }
     }
 
     void initVAO()
+    {
+        initPlaneVAO();
+        initBladeVAO();
+    }
+
+    void initPlaneVAO()
     {
         glGenVertexArrays(1, &vao);
         glGenBuffers(1, &vbo);
@@ -156,6 +184,54 @@ private:
         glEnableVertexAttribArray(0);
 
         glBindBuffer(GL_ARRAY_BUFFER, 0);
+        glBindVertexArray(0);
+    }
+
+    void initBladeVAO()
+    {
+        glGenVertexArrays(1, &bladeVao);
+        glBindVertexArray(bladeVao);
+        glGenBuffers(3, bladeVbo);
+
+        glBindBuffer(GL_ARRAY_BUFFER, bladeVbo[0]);
+        glBufferData(
+            GL_ARRAY_BUFFER, 
+            bladeVertices.size() * sizeof(float),
+            &bladeVertices[0], GL_STATIC_DRAW
+        );
+        glVertexAttribPointer(
+            0, 3, GL_FLOAT, GL_FALSE, 
+            3 * sizeof(float), (void*)0
+        );
+        glEnableVertexAttribArray(0);
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+        glBindBuffer(GL_ARRAY_BUFFER, bladeVbo[1]);
+        glBufferData(
+            GL_ARRAY_BUFFER, 
+            bladeTexCoords.size() * sizeof(float),
+            &bladeTexCoords[0], GL_STATIC_DRAW
+        );
+        glVertexAttribPointer(
+            1, 2, GL_FLOAT, GL_FALSE, 
+            2 * sizeof(float), (void*)0
+        );
+        glEnableVertexAttribArray(1);
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+        glBindBuffer(GL_ARRAY_BUFFER, bladeVbo[2]);
+        glBufferData(
+            GL_ARRAY_BUFFER, 
+            bladeLengths.size() * sizeof(float),
+            &bladeLengths[0], GL_STATIC_DRAW
+        );
+        glVertexAttribPointer(
+            2, 1, GL_FLOAT, GL_FALSE, 
+            0, (void*)0
+        );
+        glEnableVertexAttribArray(2);
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+
         glBindVertexArray(0);
     }
 
@@ -306,12 +382,49 @@ private:
 
     void initTexture()
     {
+        initPlaneTexture();
+        initBladeTexture();
+    }
+
+    void initPlaneTexture()
+    {
         glGenTextures(1, &texture);
         glBindTexture(GL_TEXTURE_2D, texture);
 
         int imgWidth, imgHeight, nrChannels;
         unsigned char* data = stbi_load(
             "obj/grass.jpg",
+            &imgWidth, &imgHeight, 
+            &nrChannels, 0
+        );
+        if(data)
+        {
+            glTexImage2D(
+                GL_TEXTURE_2D, 0, GL_RGB, 
+                imgWidth, imgHeight, 0, 
+                GL_RGB, GL_UNSIGNED_BYTE, 
+                data
+            );
+            glGenerateMipmap(GL_TEXTURE_2D);
+            glBindTexture(GL_TEXTURE_2D, 0);
+        }
+        else
+        {
+            std::cout << 
+                "Failed to load texture." << 
+                std::endl;
+        }
+        stbi_image_free(data);
+    }
+
+    void initBladeTexture()
+    {
+        glGenTextures(1, &bladeTexture);
+        glBindTexture(GL_TEXTURE_2D, bladeTexture);
+
+        int imgWidth, imgHeight, nrChannels;
+        unsigned char* data = stbi_load(
+            "obj/grass_blades.jpg",
             &imgWidth, &imgHeight, 
             &nrChannels, 0
         );
@@ -391,14 +504,19 @@ private:
 
     // vertices
     std::vector<float> vertices;
+    std::vector<float> bladeVertices;
+    std::vector<float> bladeTexCoords;
+    std::vector<float> bladeLengths;
     int width;
     int depth;
     float density;
 
     // vertex array object
     unsigned int vao;
+    unsigned int bladeVao;
     // vertex buffer object
     unsigned int vbo;
+    unsigned int bladeVbo[3];
 
     // program
     unsigned int program;
@@ -406,6 +524,7 @@ private:
 
     // texture
     unsigned int texture;
+    unsigned int bladeTexture;
 };
 
 #endif

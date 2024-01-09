@@ -176,8 +176,8 @@ int main()
 			glBindTexture(GL_TEXTURE_2D, 0);
 			glBindVertexArray(0);
 		}
-		grassPlane.draw();
-		// skybox.draw();
+		grassPlane.draw(windshift);
+		skybox.draw();
 
 		// Status update
 		currentTime = glfwGetTime();
